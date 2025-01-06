@@ -8,6 +8,7 @@ import psycopg2.extras
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 
 from database import sql_server_conn
+from database import postgresql_conn
 
 VALID_PGSQL_TYPES_WITH_LENGTH = {'varchar', 'char', 'decimal', 'numeric'}
 VALID_PGSQL_TYPES_WITHOUT_LENGTH = {'int', 'text', 'date', 'timestamp', 'smallint', 'bigint', 'boolean', 'bytea', 'json', 'jsonb', 'uuid', 'serial', 'bigserial', 'real', 'double precision'}
@@ -116,12 +117,7 @@ def generate_pgsql_table_ddl(table_name, schema):
 
 def copy_table_data(table_name, schema):
     source_cursor = sql_server_conn.cursor()
-    dest_connection = psycopg2.connect(
-        host="localhost",
-        user="postgres",
-        password="Pretzel25%",
-        database="efcontrol_cadastro"
-    )
+    dest_connection = postgresql_conn
     dest_cursor = dest_connection.cursor()
     
     columns = get_table_columns(table_name)
@@ -129,30 +125,33 @@ def copy_table_data(table_name, schema):
     dest_columns = ', '.join([process_column(col, info)['normalized_name'] for col, info in columns.items()])
     
     select_query = f"SELECT {source_columns} FROM {table_name}"
-    source_cursor.execute(select_query)
-    rows = source_cursor.fetchall()
-    
     insert_query = f"INSERT INTO {schema}.{re.sub(r'\W+', '_', table_name.lower())} ({dest_columns}) VALUES %s"
     
-    # Use tqdm to show progress
-    cleaned_rows = []
-    for row in tqdm(rows, desc=f"Copying data for {table_name}", unit="row"):
-        cleaned_row = [col.replace('\x00', '') if isinstance(col, str) else col for col in row]
-        cleaned_rows.append(cleaned_row)
+    chunk_size = 5000
+    offset = 0
     
-    psycopg2.extras.execute_values(dest_cursor, insert_query, cleaned_rows)
+    while True:
+        source_cursor.execute(f"{select_query} ORDER BY 1 OFFSET {offset} ROWS FETCH NEXT {chunk_size} ROWS ONLY")
+        rows = source_cursor.fetchall()
+        if not rows:
+            break
+        
+        cleaned_rows = []
+        for row in rows:
+            cleaned_row = [col.replace('\x00', '') if isinstance(col, str) else col for col in row]
+            cleaned_rows.append(cleaned_row)
+        
+        psycopg2.extras.execute_values(dest_cursor, insert_query, cleaned_rows)
+        dest_connection.commit()
+        
+        offset += chunk_size
+        tqdm.write(f"Processed {offset} rows for {table_name}")
     
-    dest_connection.commit()
     dest_cursor.close()
-    dest_connection.close()
+    source_cursor.close()
 
 def create_pgsql_tables(table_names, schema):
-    connection = psycopg2.connect(
-        host="localhost",
-        user="postgres",
-        password="Pretzel25%",
-        database="efcontrol_cadastro"
-    )
+    connection = postgresql_conn
     
     with connection.cursor() as cursor:
         # Create schema if it does not exist
@@ -174,7 +173,7 @@ def create_pgsql_tables(table_names, schema):
                 print(f"DDL Query: {create_table_query}")
                 raise e
     
-    connection.close()
+    ##connection.close()
 
 def get_short_tables():
     cursor = sql_server_conn.cursor()
@@ -183,8 +182,9 @@ def get_short_tables():
     FROM information_schema.tables 
     WHERE table_type = 'BASE TABLE' 
     AND table_schema = 'dbo' 
-    AND LEN(table_name) <= 7
+    AND LEN(table_name) <= 7 AND (table_name LIKE 'sc%' OR table_name LIKE 'sf%')
     """
     cursor.execute(query)
     tables = cursor.fetchall()
+    cursor.close()
     return [table[0] for table in tables]

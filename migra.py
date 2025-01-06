@@ -1,7 +1,5 @@
 import sys
 import os
-from tabulate import tabulate
-from termcolor import colored
 
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), 'utils')))
 
