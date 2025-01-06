@@ -116,6 +116,15 @@ def generate_pgsql_table_ddl(table_name, schema):
     return create_table_query
 
 def copy_table_data(table_name, schema):
+    # Lista de tabelas a serem excluídas da cópia de dados
+    excluded_tables = ['SFNH135',
+                       'SCDH001','SCDH002','SCDH003','SCDH004','SCDH005',
+                       'SCRH001','SCRH002','SCRH003','SCRH004','SCRH005']  # Adicione aqui as tabelas que você não quer copiar os dados
+    
+    if table_name in excluded_tables:
+        print(f"Skipping data copy for table {table_name}")
+        return
+    
     source_cursor = sql_server_conn.cursor()
     dest_connection = postgresql_conn
     dest_cursor = dest_connection.cursor()
@@ -131,7 +140,7 @@ def copy_table_data(table_name, schema):
     offset = 0
     
     while True:
-        source_cursor.execute(f"{select_query} ORDER BY 1 OFFSET {offset} ROWS FETCH NEXT {chunk_size} ROWS ONLY")
+        source_cursor.execute(f"{select_query} ORDER BY (SELECT NULL) OFFSET {offset} ROWS FETCH NEXT {chunk_size} ROWS ONLY")
         rows = source_cursor.fetchall()
         if not rows:
             break
@@ -182,7 +191,9 @@ def get_short_tables():
     FROM information_schema.tables 
     WHERE table_type = 'BASE TABLE' 
     AND table_schema = 'dbo' 
-    AND LEN(table_name) <= 7 AND (table_name LIKE 'sc%' OR table_name LIKE 'sf%')
+    AND LEN(table_name) <= 7 
+    AND (table_name LIKE 'sc%' OR table_name LIKE 'sf%')
+    ORDER BY table_name
     """
     cursor.execute(query)
     tables = cursor.fetchall()
