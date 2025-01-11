@@ -1,30 +1,20 @@
 import pyodbc
-#import pymysql
 import psycopg2
 
-# SQL Server connection
-sql_server_conn = pyodbc.connect(
-    'DRIVER={ODBC Driver 17 for SQL Server};'
-    'SERVER=192.168.0.80\\BD01_CREFs;'
-    'DATABASE=CREF_RJ_SCF;'
+def get_sql_server_connection(database):
+    connection_string = f"""
+    DRIVER={{ODBC Driver 17 for SQL Server}};
+    SERVER=localhost;
+    DATABASE={database};
     'UID=INFO;'
     'PWD=ONte(*(#98U'
-)
+    """
+    return pyodbc.connect(connection_string)
 
-# MySQL connection using pymysql
-"""
-mysql_conn = pymysql.connect(
-    host="192.168.0.5",
-    user="root",
-    password="Pretzel25%",
-    database="cadastro_spw"
-)
-"""
-
-# PostgreSQL connection using psycopg2
-postgresql_conn = psycopg2.connect(
-    host="192.168.0.5",
-    user="informatica",
-    password="yqT7<}Z4K>Nb",
-    database="efcontrol_cadastro"
-)
+def get_postgresql_connection(database):
+    return psycopg2.connect(
+        host="localhost",
+        user="postgres",
+        password="Pretzel25%",
+        database=database
+    )

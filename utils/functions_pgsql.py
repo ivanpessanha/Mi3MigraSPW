@@ -7,9 +7,6 @@ import psycopg2.extras
 
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 
-from database import sql_server_conn
-from database import postgresql_conn
-
 VALID_PGSQL_TYPES_WITH_LENGTH = {'varchar', 'char', 'decimal', 'numeric'}
 VALID_PGSQL_TYPES_WITHOUT_LENGTH = {'int', 'text', 'date', 'timestamp', 'smallint', 'bigint', 'boolean', 'bytea', 'json', 'jsonb', 'uuid', 'serial', 'bigserial', 'real', 'double precision'}
 
@@ -45,6 +42,15 @@ SQL_SERVER_TO_PGSQL_TYPE_MAP = {
     'xml': 'xml'
 }
 
+def normalize_name(name):
+    # Substituir espaços (inclusive consecutivos) por um único underscore
+    name = re.sub(r'\s+', '_', name)
+    # Manter apenas letras, números e underscores
+    name = re.sub(r'[^\w]', '', name)
+    # Converter para minúsculas
+    name = name.lower()
+    return name
+
 def process_column(column_name, column_info):
     column_type = column_info.get('type', 'varchar').lower()
     column_length = column_info.get('length', 255)  # Default length if not provided
@@ -76,8 +82,8 @@ def process_column(column_name, column_info):
             pgsql_data_type = column_type
     
     # Normalize column name: replace spaces with underscores and remove invalid characters
-    normalized_name = re.sub(r'\W+', '_', column_name.lower())
-    normalized_name = re.sub(r'_+', '_', normalized_name)  # Remove consecutive underscores
+
+    normalized_name = normalize_name(column_name)
     
     return {
         'normalized_name': normalized_name,
@@ -192,9 +198,10 @@ def get_short_tables():
     WHERE table_type = 'BASE TABLE' 
     AND table_schema = 'dbo' 
     AND LEN(table_name) <= 7 
-    AND (table_name LIKE 'sc%' OR table_name LIKE 'sf%')
     ORDER BY table_name
     """
+    #AND (table_name LIKE 'sc%' OR table_name LIKE 'sf%')
+
     cursor.execute(query)
     tables = cursor.fetchall()
     cursor.close()
