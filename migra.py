@@ -36,12 +36,13 @@ def migrar(base_origem, base_destino, schema="br"):
 # Exemplo de uso
 if __name__ == "__main__":
     bases_para_migrar = [
-        ("CONFEF_SDP", "efcontrol_eventos"),
-        ("CONFEF_SOP", "efcontrol_contratos"),
-        ("CONFEF_SEQ", "efcontrol_estoque"),
+        ("CONFEF_SDP", "efcontrol_eventos", "br"),
+        #fh ("CONFEF_SOP", "efcontrol_contratos"),
+        ("CONFEF_SEQ", "efcontrol_estoque", "br"),
+        ("CREF_AL_SEQ", "efcontrol_estoque", "al"),
     ]
 
-    for base_origem, base_destino in bases_para_migrar:
+    for base_origem, base_destino, schema in bases_para_migrar:
         print(f"Migrando dados de {base_origem} para {base_destino}...")
         migrar(base_origem, base_destino)
         print(f"Migração de {base_origem} para {base_destino} concluída.")
