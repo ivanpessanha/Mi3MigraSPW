@@ -125,7 +125,16 @@ def drop_table_if_exists(postgresql_conn, schema, table_name):
         postgresql_conn.commit()
         print(f"Dropped table {schema}.{normalized_table_name}")
 
-def copy_table_data(sql_server_conn, postgresql_conn, table_name, schema, batch_size=1000):
+def copy_table_data(sql_server_conn, postgresql_conn, table_name, schema, batch_size=500):
+    # Lista de tabelas a serem excluídas da cópia de dados
+    excluded_tables = ['SFNH135',
+                       'SCDH001','SCDH002','SCDH003','SCDH004','SCDH005',
+                       'SCRH001','SCRH002','SCRH003','SCRH004','SCRH005']  # Adicione aqui as tabelas que você não quer copiar os dados
+    
+    if table_name in excluded_tables:
+        print(f"Skipping data copy for table {table_name}")
+        return
+    
     """Copy table data in batches from SQL Server to PostgreSQL."""
     source_cursor = sql_server_conn.cursor()
     dest_cursor = postgresql_conn.cursor()
@@ -169,7 +178,7 @@ def create_pgsql_tables(sql_server_conn, postgresql_conn, table_names, schema):
             cursor.execute(create_table_query)
             postgresql_conn.commit()
             print(f"Table {table_name} created successfully.")
-            copy_table_data(sql_server_conn, postgresql_conn, table_name, schema, batch_size=1000)
+            copy_table_data(sql_server_conn, postgresql_conn, table_name, schema, batch_size=500)
 
 def get_short_tables(sql_server_conn):
     """Get tables with short names from SQL Server."""
@@ -180,6 +189,7 @@ def get_short_tables(sql_server_conn):
     WHERE table_type = 'BASE TABLE' 
     AND table_schema = 'dbo' 
     AND LEN(table_name) <= 7 
+    AND (table_name LIKE 'SC%' OR table_name LIKE 'SF%')
     ORDER BY table_name
     """
     cursor.execute(query)

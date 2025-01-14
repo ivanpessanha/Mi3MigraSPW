@@ -1,10 +1,10 @@
 import pyodbc
 import psycopg2
 
-def get_sql_server_connection(database):
+def get_sql_server_connection(database,instance):
     connection_string = f"""
     DRIVER={{ODBC Driver 17 for SQL Server}};
-    SERVER=192.168.0.80\\BD02_CONFEF;
+    SERVER=192.168.0.80\\{instance};
     DATABASE={database};
     UID=INFO;
     PWD=ONte(*(#98U;
@@ -13,8 +13,8 @@ def get_sql_server_connection(database):
 
 def get_postgresql_connection(database):
     return psycopg2.connect(
-        host="localhost",
-        user="postgres",
-        password="Pretzel25%",
+        host="192.168.0.5",
+        user="informatica",
+        password="yqT7<}Z4K>Nb",
         database=database
     )
