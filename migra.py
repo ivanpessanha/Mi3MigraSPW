@@ -13,7 +13,7 @@ def migrar(base_origem, base_destino, schema, instancia_origem):
     Args:
         base_origem (str): Nome da base de dados no SQL Server.
         base_destino (str): Nome da base de dados no PostgreSQL.
-        schema (str): Esquema no PostgreSQL onde as tabelas serão criadas (default: "br").
+        schema (str): Esquema no PostgreSQL onde as tabelas serão criadas.
     """
     # Conectar ao SQL Server
     sql_server_conn = get_sql_server_connection(base_origem, instancia_origem)
