@@ -1,6 +1,17 @@
 import pyodbc
 import psycopg2
 
+def get_freetds_connection(database, instance):
+    connection_string = f"""
+    DRIVER={{FreeTDS}};
+    SERVER={instance};
+    DATABASE={database};
+    UID=INFO;
+    PWD=ONte(*(#98U;
+    TDS_Version=8.0;
+    """
+    return pyodbc.connect(connection_string)
+
 def get_sql_server_connection(database,instance):
     connection_string = f"""
     DRIVER={{ODBC Driver 17 for SQL Server}};
