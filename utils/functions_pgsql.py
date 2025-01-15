@@ -111,7 +111,8 @@ def generate_pgsql_table_ddl(sql_server_conn, table_name, schema):
         column_definitions.append(f"{processed_column['normalized_name']} {processed_column['pgsql_data_type']}")
     
     normalized_table_name = normalize_name(table_name)
-    return f"CREATE TABLE {schema}.{normalized_table_name} (\n    {',\n    '.join(column_definitions)}\n);"
+    
+    return f"CREATE TABLE {schema}.{normalized_table_name} (\n    {',    '.join(column_definitions)}\n);"
 
 def drop_table_if_exists(postgresql_conn, schema, table_name):
     """Drop table if it exists in PostgreSQL."""
