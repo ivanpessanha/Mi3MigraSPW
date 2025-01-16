@@ -3,7 +3,7 @@ import psycopg2
 
 def get_freetds_connection(database, instance):
     connection_string = (
-        f"DSN={instance};"  # Nome do DSN configurado no odbc.ini
+        f"DSN={instance};"
         f"DATABASE={database};"
         f"UID=INFO;"
         f"PWD=ONte(*(#98U;"

@@ -77,9 +77,11 @@ def process_column(column_name, column_info):
         
         pgsql_data_type = column_type
 
+    # Normalize column name and wrap in double quotes
     normalized_name = normalize_name(column_name)
+    safe_name = f'"{normalized_name}"'
     return {
-        'normalized_name': normalized_name,
+        'normalized_name': safe_name,
         'pgsql_data_type': pgsql_data_type
     }
 
@@ -126,7 +128,7 @@ def drop_table_if_exists(postgresql_conn, schema, table_name):
         postgresql_conn.commit()
         print(f"Dropped table {schema}.{normalized_table_name}")
 
-def copy_table_data(sql_server_conn, postgresql_conn, table_name, schema, batch_size=500):
+def copy_table_data(sql_server_conn, postgresql_conn, table_name, schema, batch_size=1000):
     # Lista de tabelas a serem excluídas da cópia de dados
     excluded_tables = ['SFNH135',
                        'SCDH001','SCDH002','SCDH003','SCDH004','SCDH005',
@@ -176,10 +178,11 @@ def create_pgsql_tables(sql_server_conn, postgresql_conn, table_names, schema):
         for table_name in tqdm(table_names, desc="Creating tables", unit="table"):
             drop_table_if_exists(postgresql_conn, schema, table_name)
             create_table_query = generate_pgsql_table_ddl(sql_server_conn, table_name, schema)
+            print(create_table_query)
             cursor.execute(create_table_query)
             postgresql_conn.commit()
             print(f"Table {table_name} created successfully.")
-            copy_table_data(sql_server_conn, postgresql_conn, table_name, schema, batch_size=500)
+            copy_table_data(sql_server_conn, postgresql_conn, table_name, schema, batch_size=1000)
 
 def get_short_tables(sql_server_conn):
     """Get tables with short names from SQL Server."""
@@ -190,9 +193,10 @@ def get_short_tables(sql_server_conn):
     WHERE table_type = 'BASE TABLE' 
     AND table_schema = 'dbo' 
     AND LEN(table_name) <= 7 
-    AND (table_name LIKE 'SC%' OR table_name LIKE 'SF%')
+    AND (table_name LIKE 'SF%')
     ORDER BY table_name
     """
+    #AND (table_name LIKE 'SC%' OR table_name LIKE 'SF%')
     cursor.execute(query)
     tables = cursor.fetchall()
     cursor.close()
