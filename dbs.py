@@ -22,7 +22,7 @@ def get_sql_server_connection(database,instance):
 
 def get_postgresql_connection(database):
     return psycopg2.connect(
-        host="/var/run/postgresql",
+        host="192.168.0.5",
         user="informatica",
         password="yqT7<}Z4K>Nb",
         database=database

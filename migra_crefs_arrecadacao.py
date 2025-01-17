@@ -4,7 +4,7 @@ import os
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), 'utils')))
 
 from utils.functions_pgsql import get_short_tables, create_pgsql_tables
-from database import get_sql_server_connection, get_postgresql_connection, get_freetds_connection
+from dbs import get_sql_server_connection, get_postgresql_connection, get_freetds_connection
 
 def migrar(base_origem, base_destino, schema, instancia_origem):
     """

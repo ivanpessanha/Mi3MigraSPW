@@ -3,6 +3,8 @@ import psycopg2
 from tqdm import tqdm
 import psycopg2.extras
 from psycopg2 import sql
+from psycopg2.extras import execute_values
+from datetime import datetime
 
 VALID_PGSQL_TYPES_WITH_LENGTH = {'varchar', 'char', 'decimal', 'numeric'}
 VALID_PGSQL_TYPES_WITHOUT_LENGTH = {'int', 'text', 'date', 'timestamp', 'smallint', 'bigint', 'boolean', 'bytea', 'json', 'jsonb', 'uuid', 'serial', 'bigserial', 'real', 'double precision'}
@@ -116,6 +118,92 @@ def generate_pgsql_table_ddl(sql_server_conn, table_name, schema):
     
     return f"CREATE TABLE {schema}.{normalized_table_name} (\n    {',    '.join(column_definitions)}\n);"
 
+
+def generate_pgsql_table_ddl_and_sync(sql_server_conn, postgresql_conn, table_name, schema):
+    """
+    Generate PostgreSQL table creation DDL and sync objects and fields manually.
+    
+    Args:
+        sql_server_conn: Connection to the SQL Server database.
+        postgresql_conn: Connection to the PostgreSQL database (efcontrol_migracao).
+        table_name: Name of the table in the SQL Server database.
+        schema: Target schema in PostgreSQL.
+
+    Returns:
+        str: PostgreSQL CREATE TABLE DDL statement.
+    """
+    columns = get_table_columns(sql_server_conn, table_name)
+    column_definitions = []
+
+    # Normalize table name for PostgreSQL
+    normalized_table_name = normalize_name(table_name)
+
+    # Prepare to insert into the `objetos` table
+    objeto_query = """
+    INSERT INTO objetos (nome_origem, nome_destino, tipo, migrar, copiar_dados, descricao, base_dados_id, created_at, updated_at)
+    VALUES (%s, %s, %s, %s, %s, %s, %s, now(), now())
+    RETURNING id;
+    """
+    objeto_values = (
+        table_name,                     # nome_origem
+        normalized_table_name,          # nome_destino
+        'tabela',                       # tipo (default 'tabela')
+        True,                           # migrar
+        True,                           # copiar_dados
+        f"Tabela sincronizada: {table_name}",  # descricao
+        1                          # base_dados_id (passar o ID da base de dados)
+    )
+
+    # Insert the `objetos` record and get its ID
+    with postgresql_conn.cursor() as cursor:
+        print(objeto_query, objeto_values)
+        cursor.execute(objeto_query, objeto_values)
+        objeto_id = cursor.fetchone()[0]
+
+    # Prepare to insert columns into the `campos` table
+    campos_query = """
+    INSERT INTO campos (nome_origem, nome_destino, tipo_dados_origem, tipo_dados_destino,
+                        tamanho_origem, tamanho_destino, precisao_origem, precisao_destino,
+                        aceita_nulo_origem, aceita_nulo_destino, valor_padrao_origem,
+                        valor_padrao_destino, migrar, copiar_dados, objeto_id, created_at, updated_at)
+    VALUES %s;
+    """
+    campos_values = []
+
+    for column_name, column_info in columns.items():
+        processed_column = process_column(column_name, column_info)
+        column_definitions.append(f"{processed_column['normalized_name']} {processed_column['pgsql_data_type']}")
+
+        campos_values.append((
+            column_name,                                 # nome_origem
+            processed_column['normalized_name'],         # nome_destino
+            column_info['type'],                         # tipo_dados_origem
+            processed_column['pgsql_data_type'],         # tipo_dados_destino
+            column_info.get('length'),                   # tamanho_origem
+            column_info.get('length'),                   # tamanho_destino
+            column_info.get('precision'),                # precisao_origem
+            column_info.get('precision'),                # precisao_destino
+            column_info.get('nullable', True),           # aceita_nulo_origem
+            column_info.get('nullable', True),           # aceita_nulo_destino
+            column_info.get('default'),                  # valor_padrao_origem
+            column_info.get('default'),                  # valor_padrao_destino
+            True,                                        # migrar
+            True,                                        # copiar_dados
+            objeto_id,                                   # objeto_id
+            datetime.now(),                              # created_at
+            datetime.now()                               # updated_at
+        ))
+
+    # Insert all `campos` records in a single batch
+    with postgresql_conn.cursor() as cursor:
+        execute_values(cursor, campos_query, campos_values)
+
+    postgresql_conn.commit()
+
+    # Generate the DDL statement
+    return f"CREATE TABLE {schema}.{normalized_table_name} (\n    {',    '.join(column_definitions)}\n);"
+
+
 def drop_table_if_exists(postgresql_conn, schema, table_name):
     """Drop table if it exists in PostgreSQL."""
     normalized_table_name = normalize_name(table_name)
@@ -169,7 +257,7 @@ def copy_table_data(sql_server_conn, postgresql_conn, table_name, schema, batch_
     dest_cursor.close()
     source_cursor.close()
 
-def create_pgsql_tables(sql_server_conn, postgresql_conn, table_names, schema):
+def create_pgsql_tables(sql_server_conn, postgresql_conn, table_names, schema, copy_data=True):
     """Create tables and copy data from SQL Server to PostgreSQL."""
     with postgresql_conn.cursor() as cursor:
         cursor.execute(f"CREATE SCHEMA IF NOT EXISTS {schema};")
@@ -177,12 +265,13 @@ def create_pgsql_tables(sql_server_conn, postgresql_conn, table_names, schema):
         
         for table_name in tqdm(table_names, desc="Creating tables", unit="table"):
             drop_table_if_exists(postgresql_conn, schema, table_name)
-            create_table_query = generate_pgsql_table_ddl(sql_server_conn, table_name, schema)
+            create_table_query = generate_pgsql_table_ddl_and_sync(sql_server_conn, postgresql_conn, table_name, schema)
             print(create_table_query)
             cursor.execute(create_table_query)
             postgresql_conn.commit()
             print(f"Table {table_name} created successfully.")
-            copy_table_data(sql_server_conn, postgresql_conn, table_name, schema, batch_size=1000)
+            if copy_data:
+                copy_table_data(sql_server_conn, postgresql_conn, table_name, schema, batch_size=1000)
 
 def get_short_tables(sql_server_conn):
     """Get tables with short names from SQL Server."""
@@ -193,7 +282,6 @@ def get_short_tables(sql_server_conn):
     WHERE table_type = 'BASE TABLE' 
     AND table_schema = 'dbo' 
     AND LEN(table_name) <= 7 
-    AND (table_name LIKE 'SF%')
     ORDER BY table_name
     """
     #AND (table_name LIKE 'SC%' OR table_name LIKE 'SF%')
